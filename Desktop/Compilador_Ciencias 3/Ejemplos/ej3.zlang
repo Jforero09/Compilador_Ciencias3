@@ -1,0 +1,7 @@
+function calcularPromedio(nota1, nota2, nota3) {
+    let suma = nota1 + nota2 + nota3;
+    let promedio = suma / 3;
+    return promedio;
+}
+
+notaFinal = calcularPromedio(4.5, 3.8, 5.0);

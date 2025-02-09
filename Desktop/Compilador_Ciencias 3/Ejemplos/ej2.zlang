@@ -1,0 +1,7 @@
+function multiplicar(x, y) {
+    let resultado = x * y;
+    return resultado;
+}
+
+a = 10;
+b = multiplicar(a, 2);

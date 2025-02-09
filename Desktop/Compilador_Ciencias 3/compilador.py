@@ -1,9 +1,8 @@
-import ply.lex as lex
-import ply.yacc as yacc
 import os
 
 # Verificación de extensión de archivo
 def verificar_extension(archivo):
+    print(f"Verificando extensión del archivo: {archivo}")
     if not archivo.endswith('.zlang'):
         raise ValueError("Error: El archivo debe tener la extensión .zlang.")
 
@@ -11,7 +10,7 @@ def verificar_extension(archivo):
 tokens = (
     'NUMERO_ENTERO', 'NUMERO_FLOTANTE', 'IDENTIFICADOR', 'OPERADOR_ARITMETICO',
     'OPERADOR_COMPARACION', 'OPERADOR_LOGICO', 'PALABRA_CLAVE',
-    'LPAREN', 'RPAREN', 'LBRACE', 'RBRACE', 'COMMA', 'SEMICOLON'
+    'LPAREN', 'RPAREN', 'LBRACE', 'RBRACE', 'COMMA', 'SEMICOLON', 'ASIGNACION'
 )
 
 # Reglas de expresiones regulares para tokens simples
@@ -24,6 +23,7 @@ t_LBRACE = r'\{'
 t_RBRACE = r'\}'
 t_COMMA = r','
 t_SEMICOLON = r';'
+t_ASIGNACION = r'='
 t_ignore = ' \t'
 
 def t_NUMERO_FLOTANTE(t):
@@ -43,91 +43,125 @@ def t_IDENTIFICADOR(t):
     return t
 
 def t_error(t):
+    print(f"Error léxico: Carácter no válido '{t.value[0]}' en la entrada.")
     raise SyntaxError(f"Error: Carácter no válido '{t.value[0]}' en la entrada.")
     t.lexer.skip(1)
 
-lexer = lex.lex()
+# Implementación manual del lexer
+class Lexer:
+    def __init__(self, input_text):
+        self.text = input_text
+        self.position = 0
+    
+    def get_next_token(self):
+        while self.position < len(self.text) and self.text[self.position].isspace():
+            self.position += 1
+        if self.position >= len(self.text):
+            return None
+        char = self.text[self.position]
+        self.position += 1
+        print(f"Analizando carácter: {char}")
+        if char.isdigit():
+            num = char
+            while self.position < len(self.text) and self.text[self.position].isdigit():
+                num += self.text[self.position]
+                self.position += 1
+            print(f"Token encontrado: NUMERO_ENTERO ({num})")
+            return ('NUMERO_ENTERO', int(num))
+        elif char.isalpha():
+            ident = char
+            while self.position < len(self.text) and self.text[self.position].isalnum():
+                ident += self.text[self.position]
+                self.position += 1
+            if ident in ('if', 'else', 'while', 'for', 'return', 'function'):
+                print(f"Token encontrado: PALABRA_CLAVE ({ident})")
+                return ('PALABRA_CLAVE', ident)
+            print(f"Token encontrado: IDENTIFICADOR ({ident})")
+            return ('IDENTIFICADOR', ident)
+        elif char == '=':
+            print("Token encontrado: ASIGNACION (=)")
+            return ('ASIGNACION', '=')
+        elif char in '+-*/%':
+            print(f"Token encontrado: OPERADOR_ARITMETICO ({char})")
+            return ('OPERADOR_ARITMETICO', char)
+        elif char == '(':
+            return ('LPAREN', '(')
+        elif char == ')':
+            return ('RPAREN', ')')
+        elif char == '{':
+            return ('LBRACE', '{')
+        elif char == '}':
+            return ('RBRACE', '}')
+        elif char == ',':
+            return ('COMMA', ',')
+        elif char == ';':
+            return ('SEMICOLON', ';')
+        else:
+            print(f"Error léxico: Carácter inesperado '{char}'")
+            raise SyntaxError(f"Error: Carácter no válido '{char}' en la entrada.")
 
-# Definición de la gramática
-precedence = (
-    ('left', 'OPERADOR_ARITMETICO'),
-    ('left', 'OPERADOR_COMPARACION'),
-    ('left', 'OPERADOR_LOGICO')
-)
-
-def p_expresion_binaria(p):
-    '''expresion : expresion OPERADOR_ARITMETICO expresion
-                 | expresion OPERADOR_COMPARACION expresion
-                 | expresion OPERADOR_LOGICO expresion'''
-    p[0] = ('BINOP', p[2], p[1], p[3])
-
-def p_expresion_numero(p):
-    '''expresion : NUMERO_ENTERO
-                 | NUMERO_FLOTANTE'''
-    p[0] = ('NUM', p[1])
-
-def p_expresion_identificador(p):
-    'expresion : IDENTIFICADOR'
-    p[0] = ('VAR', p[1])
-
-def p_sentencia_asignacion(p):
-    'sentencia : IDENTIFICADOR "=" expresion SEMICOLON'
-    p[0] = ('ASIGN', p[1], p[3])
-
-def p_sentencia_if(p):
-    'sentencia : PALABRA_CLAVE LPAREN expresion RPAREN LBRACE sentencias RBRACE'
-    p[0] = ('IF', p[3], p[6])
-
-def p_sentencia_while(p):
-    'sentencia : PALABRA_CLAVE LPAREN expresion RPAREN LBRACE sentencias RBRACE'
-    p[0] = ('WHILE', p[3], p[6])
-
-def p_sentencia_for(p):
-    'sentencia : PALABRA_CLAVE LPAREN sentencia expresion SEMICOLON expresion RPAREN LBRACE sentencias RBRACE'
-    p[0] = ('FOR', p[3], p[4], p[6], p[9])
-
-def p_sentencia_funcion(p):
-    'sentencia : PALABRA_CLAVE IDENTIFICADOR LPAREN parametros RPAREN LBRACE sentencias RBRACE'
-    p[0] = ('FUNC', p[2], p[4], p[7])
-
-def p_parametros(p):
-    '''parametros : IDENTIFICADOR
-                  | IDENTIFICADOR COMMA parametros
-                  | empty'''
-    if len(p) == 2:
-        p[0] = [p[1]] if p[1] else []
-    else:
-        p[0] = [p[1]] + p[3]
-
-def p_sentencias(p):
-    '''sentencias : sentencia
-                  | sentencia sentencias'''
-    if len(p) == 2:
-        p[0] = [p[1]]
-    else:
-        p[0] = [p[1]] + p[2]
-
-def p_empty(p):
-    'empty :'
-    p[0] = None
-
-def p_error(p):
-    if p:
-        raise SyntaxError(f"Error de sintaxis cerca de '{p.value}'")
-    else:
-        raise SyntaxError("Error de sintaxis: entrada inesperada.")
-
-parser = yacc.yacc()
+# Implementación mejorada del parser
+class Parser:
+    def __init__(self, lexer):
+        self.lexer = lexer
+        self.current_token = self.lexer.get_next_token()
+        print(f"Primer token: {self.current_token}")
+    
+    def eat(self, token_type):
+        print(f"Esperando token: {token_type}, Token actual: {self.current_token}")
+        if self.current_token and self.current_token[0] == token_type:
+            self.current_token = self.lexer.get_next_token()
+        else:
+            raise SyntaxError(f"Error de sintaxis: se esperaba '{token_type}'")
+    
+    def parse_parametros(self):
+        parametros = []
+        while self.current_token and self.current_token[0] == 'IDENTIFICADOR':
+            parametros.append(self.current_token[1])
+            self.eat('IDENTIFICADOR')
+            if self.current_token and self.current_token[0] == 'COMMA':
+                self.eat('COMMA')
+            else:
+                break
+        return parametros
+    
+    def parse_bloque(self):
+        print("Analizando bloque de código")
+        while self.current_token and self.current_token[0] != 'RBRACE':
+            print(f"Sentencia dentro del bloque: {self.current_token}")
+            self.eat(self.current_token[0])
+        self.eat('RBRACE')
+    
+    def parse_sentencia(self):
+        if not self.current_token:
+            raise SyntaxError("Error de sintaxis: sentencia inesperadamente vacía")
+        print(f"Analizando sentencia con token: {self.current_token}")
+        if self.current_token[0] == 'PALABRA_CLAVE' and self.current_token[1] == 'function':
+            self.eat('PALABRA_CLAVE')
+            nombre_funcion = self.current_token[1]
+            self.eat('IDENTIFICADOR')
+            self.eat('LPAREN')
+            parametros = self.parse_parametros()
+            self.eat('RPAREN')
+            self.eat('LBRACE')
+            self.parse_bloque()
+            return ('FUNC_DEF', nombre_funcion, parametros)
+        else:
+            raise SyntaxError("Error de sintaxis en la sentencia")
 
 # Verificación de archivo y prueba
 def analizar_archivo(archivo):
     verificar_extension(archivo)
     with open(archivo, 'r') as f:
         codigo = f.read()
-    return parser.parse(codigo)
+    print("Código cargado:")
+    print(codigo)
+    lexer = Lexer(codigo)
+    parser = Parser(lexer)
+    return parser.parse_sentencia()
 
 # Prueba
-archivo_prueba = "C:\Users\Usuario\Desktop\Compilador_Ciencias 3\Ejemplos\ej1.zlang"
+archivo_prueba = "Ejemplos/ej1.zlang"
 try:
     resultado = analizar_archivo(archivo_prueba)
     print("Análisis exitoso. Resultado:", resultado)
